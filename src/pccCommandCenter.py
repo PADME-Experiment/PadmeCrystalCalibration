@@ -1,13 +1,6 @@
-from __future__ import print_function
-import sys
-import time
-import threading
-import tsdict
 
-if sys.version_info.major == 3:
-    import queue as Queue
-else:
-    import Queue
+import pccBaseModule
+import tsdict
 
 class Command(object):
     def __init__(self, command=(), tokenId=42, answerQueue=None):
@@ -38,38 +31,40 @@ class Command(object):
         if self.wantAnswer:
             self.answerQueue.put(answerMessage)
 
-class CommandCenter(threading.Thread):
+class CommandCenter(pccBaseModule.BaseModule):
     def __init__(self, logger, configuration):
-        self.cmdCenter = tsdict.TSDict()
-        threading.Thread.__init__(self)
-        self.logger = logger
-        self.inputQueue = Queue.Queue()
+        pccBaseModule.BaseModule.__init__(self, logger, configuration)
+        self.registeredModules = tsdict.TSDict()
         self.name = "CommandCenter"
-        self.config = configuration
+
+    def setupCmdDict(self):
+        self.cmdDict["addModule"]  = self.addModule
+        self.cmdDict["rmModule"]   = self.rmModule
+        self.cmdDict["moduleList"] = self.moduleList
 
     def addModule(self, name, module):
         self.logger.debug(self.name, "- addModule: ", name)
         module.commandQueue(self.inputQueue)
-        self.cmdCenter[name] = module
+        self.registeredModules[name] = module
 
     def rmModule(self, name):
         self.logger.debug(self.name, "- rmModule: ", name)
-        if name in self.cmdCenter:
-            del(self.cmdCenter[name])
+        if name in self.registeredModules:
+            del(self.registeredModules[name])
+
+    def moduleList(self, *args):
+        return self.registeredModules.keys()
     
     def sendCommand(self, cmd):
         self.inputQueue.put(cmd)
 
-    def exit(self):
-        self.goOn = False
-
     def run(self):
-        self.logger.debug("CommandCenter starting...")
+        self.logger.debug(self.name+" starting...")
         self.goOn = True
         while self.goOn:
             try:
                 cmd = self.inputQueue.get(timeout=1)
-            except Queue.Empty:
+            except pccBaseModule.Queue.Empty:
                 continue
 
             dest = cmd.receiver()
@@ -77,25 +72,19 @@ class CommandCenter(threading.Thread):
             if dest == "CommandCenter":
                 self.processCommand(cmd)
             else:
-                if module in self.cmdCenter[dest]:
-                    module = self.cmdCenter[dest]
-                    module.processCommand(cmd)
+                if dest in self.registeredModules:
+                    module = self.registeredModules[dest]
+                    module.inputQueue.put(cmd)
                 else:
                     self.logger.error(self.name, ": Whoops, module", module, "not found...")
-        print("Farewell CC...")
-                
-    def processCommand(self, cmd):
-        theCommand = cmd.command()
-
-        if theCommand == "addModule":
-            self.addModule(*cmd.args())
-        
-        if theCommand == "rmModule":
-            self.rmModule(*cmd.args())
-
-        if theCommand == "exit":
-            self.goOn = False
-        
-        if theCommand == "moduleList":
-            moduleList = self.cmdCenter.keys()
-            cmd.answer(self.name, moduleList)
+        print(self.name, "farewell...")
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
+    # def processCommand(self, cmd): 
+    #     theCommand = cmd.command()
+    #     if theCommand == "exit":
+    #         self.goOn = False
+    #     elif theCommand in self.cmdDict:
+    #         result = self.cmdDict[theCommand](cmd)
+    #         cmd.answer(self.name, result)
+    #     else:
+    #         self.logger.warn(self.name, "Command %s not found. Ignoring."%theCommand)

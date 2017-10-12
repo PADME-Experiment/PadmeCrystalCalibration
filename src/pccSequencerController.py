@@ -1,25 +1,13 @@
-from __future__ import print_function
-import sys
-import time
-import threading
-import tsdict
-import pccCommandCenter
+import pccBaseModule
 
-if sys.version_info.major == 3:
-    import queue as Queue
-else:
-    import Queue
-
-class Sequencer(threading.Thread):
+class Sequencer(pccBaseModule.BaseModule):
     def __init__(self, logger, sequenceName):
-        threading.Thread.__init__(self)
-        self.logger = logger
+        pccBaseModule.BaseModule.__init__(self, logger, configuration)
         self.sequenceName = sequenceName
         self.needHV = True
         self.needCrystals = True
         self.needPositions = True
         self.name = "Sequencer"
-        self.communicationQueue = Queue.Queue()
 
     def set_HVs(self, *hvList):
         self.HVlist = hvList
@@ -39,11 +27,12 @@ class Sequencer(threading.Thread):
         for tension in self.HVlist:
             self.theSequence.append(("setHV", tension))
             self.theSequence.append(("resetXY", 0))
+            self.theSequence.append(("syncState",))
             for crystal in dataPoints:
                 self.theSequence.append(("moveXY", dataPoints[1]))
-                self.theSequence.append(("syncState"))
+                self.theSequence.append(("syncState",))
                 self.theSequence.append(("runDAQ", dataPoints[0]))
-                self.theSequence.append(("syncState"))
+                self.theSequence.append(("syncState",))
 
     def run(self):
         if self.needHV:
@@ -102,53 +91,23 @@ class Sequencer(threading.Thread):
         return status
     
 
-class SequencerController(threading.Thread):
+class SequencerController(pccBaseModule.BaseModule):
     def __init__(self, logger, configuration):
-        threading.Thread.__init__(self)
-        self.logger = logger
-        self.inputQueue = Queue.Queue()
+        pccBaseModule.BaseModule.__init__(self, logger, configuration)
         self.name = "SequencerController"
-        self.config = configuration
-        
-    def commandQueue(self, queue):
-        self.commandQueue = queue
 
     def exit(self):
-        self.goOn = False
+        self.logger.warn("This needs to do a little more than the usual...")
 
-    def run(self):
-        self.logger.debug("Sequencer starting...")
-        self.goOn = True
-        while self.goOn:
-            try:
-                cmd = self.inputQueue.get(timeout=1)
-            except Queue.Empty:
-                continue
-
-            self.logger.debug("Received message to", cmd.receiver(), cmd.command(), cmd.tokenId())
-            self.processCommand(cmd)
-            
-        print("Farewell Sequencer...")
-                
-    def processCommand(self, cmd):
-        theCommand = cmd.command()
-
-        if theCommand == "startSequence":
-            pass
-        
-        if theCommand == "getSequence":
-            pass
-
-        if theCommand == "loadSequence":
-            pass
-        
-        if theCommand == "stopSequence":
-            pass
-
-        if theCommand == "resetSequence":
-            pass
-        
-
-
-        if theCommand == "exit":
-            self.goOn = False
+    def setupCmdDict(self):
+        self.cmdDict["startSequence"] = self.startSequence
+        self.cmdDict["getSequence"]   = self.getSequence
+        self.cmdDict["loadSequence"]  = self.loadSequence
+        self.cmdDict["stopSequence"]  = self.stopSequence
+        self.cmdDict["resetSequence"] = self.resetSequence
+        self.cmdDict["loadCrystals"]  = self.loadCrystals
+        self.cmdDict["getCrystals"]   = self.getCrystals
+        self.cmdDict["loadHVpoints"]  = self.loadHVpoints
+        self.cmdDict["getHVpoints"]   = self.getHVpoints 
+        self.cmdDict["loadPositions"] = self.loadPositions 
+        self.cmdDict["getPositions"]  = self.getPositions
