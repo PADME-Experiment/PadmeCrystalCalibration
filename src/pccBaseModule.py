@@ -22,10 +22,11 @@ class BaseModule(threading.Thread):
     def setupCmdDict(self):
         self.logger.error(self.name, "module does not have a configured cmdDict.")
 
-    def commandQueue(self, queue):
+    def setCommandQueue(self, queue):
         self.commandQueue = queue
 
     def exit(self):
+        #self.commandQueue.put("exitNowPlease")
         self.goOn = False
 
     def run(self):
@@ -33,9 +34,14 @@ class BaseModule(threading.Thread):
         self.goOn = True
         while self.goOn:
             try:
-                cmd = self.inputQueue.get(timeout=1)
+                cmd = self.inputQueue.get(timeout=0.1)
             except Queue.Empty:
                 continue
+
+            if cmd == "exitNowPlease":
+                print("Got exitNowPlease")
+                self.goOn = False
+                break
 
             self.logger.debug(self.name, ": received message to", cmd.receiver(), cmd.command(), cmd.tokenId())
             self.processCommand(cmd)

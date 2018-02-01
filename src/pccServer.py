@@ -6,16 +6,21 @@ Created on Wed Sep 20 12:11:54 2017
 @author: franz
 """
 from __future__ import print_function
-import pccServer
-import os
 import argparse
+import os
+import signal
+import sys
+import time
+import asyncore
 
+import pccServer
 import pccCommandCenter
 import pccLogger
 import pccTcpServer
 import pccMoveController
-import time
-import asyncore
+import pccHVController
+import pccRCController
+import pccSequencerController
 
 # start and setup server
 # check config files
@@ -36,6 +41,19 @@ import asyncore
 # move to next crystal... again
 
 
+threadList = []
+
+def signalHandler(signum, frame):
+    print('Signal handler called with signal', signum)
+    print("Trying to join/exit the threads...")
+    print(threadList)
+    for threadIdx in range(len(threadList)-1,-1,-1):
+        print(threadIdx, threadList[threadIdx].name)
+        threadList[threadIdx].exit()
+        threadList[threadIdx].join()
+
+    sys.exit(0)
+
 def parseArguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", default=42424, type=int, help="the TCP port for the server")
@@ -43,32 +61,65 @@ def parseArguments():
     return parser.parse_args()
 
 
+def loadConfiguration(fname="pcc_configuration.txt"):
+    configuration = {}
+    configuration["MovementServer"] = "192.168.0.52"
+    configuration["TCPPort"] = 42424
+    configuration["DAQConfigPath"] = "./"
+    return configuration    
+    
+
 if __name__ == "__main__":
+    
+    signal.signal(signal.SIGINT, signalHandler)
+    signal.signal(signal.SIGHUP, signalHandler)
+
     args = parseArguments()
 
-    threadList = []
+    # this will be replaced by the configuration reader/parser
+    configuration = loadConfiguration()
 
-    configuration = {}
-    configuration["MovementServer"] = "http://192.168.0.52"
-    configuration["TCPPort"] = 42424
-
+    # create the Logger
     theLogger = pccLogger.PadmeLogger()
     threadList.append(theLogger)
     theLogger.start()
     theLogger.addWriter("print", pccLogger.PrintLoggerObject())
     theLogger.trace("logger is active...")
 
+    # create the CommandCenter
     theCommandCenter = pccCommandCenter.CommandCenter(theLogger, configuration)
     threadList.append(theCommandCenter)
     theCommandCenter.start()
 
+    # create the TcpServer, does not need to be start()ed as it uses asyncore for operation
     theTcpServer = pccTcpServer.TcpServer(theLogger, configuration)
     theCommandCenter.inputQueue.put(pccCommandCenter.Command(("CommandCenter", "addModule", theTcpServer.name, theTcpServer)))
 
+    # create the MovementController
     theMoveController = pccMoveController.MoveController(theLogger, configuration)
     threadList.append(theMoveController)
     theMoveController.start()
     theCommandCenter.inputQueue.put(pccCommandCenter.Command(("CommandCenter", "addModule", theMoveController.name, theMoveController)))
+
+    # create the HVController
+    theHVController = pccHVController.HVController(theLogger, configuration)
+    threadList.append(theHVController)
+    theHVController.start()
+    theCommandCenter.inputQueue.put(pccCommandCenter.Command(("CommandCenter", "addModule", theHVController.name, theHVController)))
+
+    # create the RCController
+    theRCController = pccRCController.RCController(theLogger, configuration)
+    threadList.append(theRCController)
+    theRCController.start()
+    theCommandCenter.inputQueue.put(pccCommandCenter.Command(("CommandCenter", "addModule", theRCController.name, theRCController)))
+    
+    # create the Sequencer
+    theSequencerController = pccSequencerController.SequencerController(theLogger, configuration)
+    threadList.append(theSequencerController)
+    theSequencerController.start()
+    theCommandCenter.inputQueue.put(pccCommandCenter.Command(("CommandCenter", "addModule", theSequencerController.name, theSequencerController)))
+
+    print("All done, ready to go...")
 
     asyncore.loop(timeout=0.1)
     time.sleep(1)

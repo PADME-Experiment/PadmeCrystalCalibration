@@ -32,7 +32,7 @@ class TcpServer(asyncore.dispatcher):
             self.logger.debug("TcpServer got connection from  %s - creating handler."%repr(client_data[1]))
             self.handlerList.append(TcpConnectionHandler(client_data[0], self.logger, self.commandQueue))
 
-    def commandQueue(self, queue):
+    def setCommandQueue(self, queue):
         self.commandQueue = queue
 
     def exit(self):
@@ -50,7 +50,7 @@ class TcpConnectionHandler(asyncore.dispatcher_with_send):
         self.commandQueue = commandQueue
         self.logger.trace(self.name)
 
-    def commandQueue(self, queue):
+    def setCommandQueue(self, queue):
         self.commandQueue = queue
 
     def handle_read(self):
@@ -65,7 +65,7 @@ class TcpConnectionHandler(asyncore.dispatcher_with_send):
         return not self.answerQueue.empty()
 
     def handle_write(self):
-        print("yes!!!!!!")
+        #print("yes!!!!!!")
         try:
             data = self.answerQueue.get(timeout=0.01)
             #packet = "%s %s %s\n"%(data.receiver(), data.command(), " ".join(data.args()))

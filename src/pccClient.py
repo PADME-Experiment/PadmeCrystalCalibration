@@ -90,6 +90,10 @@ class CmdLine(cmd.Cmd):
         "Send commands to the MoveController"
         self.communicationQueue.put("MoveController %s"%line)
        
+    def do_hv(self, line):
+        "Send commands to the HVController"
+        self.communicationQueue.put("HVController %s"%line)
+       
     def do_seq(self, line):
         "Send commands to the SequencerController"
         self.communicationQueue.put("SequencerController %s"%line)
