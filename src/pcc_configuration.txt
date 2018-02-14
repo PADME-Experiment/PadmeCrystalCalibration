@@ -1,0 +1,24 @@
+# The address of the movement server
+MovementServer=192.168.0.52
+
+# The port for the server to listen to
+TCPPort=42424
+
+# Set this to true to avoid running stuff for real
+SimulationMode=True
+
+# The path where the DAQ stuff will be stored
+DAQConfigPath = ./
+
+# The HV controller executable
+HVexecutable = /home/daq/PCT_HV/PCT_HV
+
+# PadmeDAQ executable w/path
+PadmeDAQexecutable = /home/daq/Padme/PadmeDAQ/PadmeDAQ.exe
+
+# Lvl1DAQ executable w/path
+Lvl1DAQexecutable = /home/daq/Padme/Level1/PadmeLevel1.exe
+
+
+# This forces the commands interacting with the HV to retry when
+HVSafeReadMode=True
