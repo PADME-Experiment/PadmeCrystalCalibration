@@ -2,6 +2,7 @@ import pccBaseModule
 import pccCommandCenter
 import subprocess
 import time
+import os
 
 class RCController(pccBaseModule.BaseModule):
     def __init__(self, logger, configuration):
@@ -21,29 +22,42 @@ class RCController(pccBaseModule.BaseModule):
             return "DAQ idle"
 
     def runDAQ(self, sequenceName, position, crystalID):
-        
-        dataQueue = pccBaseModule.Queue.Queue()
-        infoData = pccCommandCenter.Command(("HVController", "getChannelData", position), answerQueue = dataQueue)
-        self.commandQueue.put(infoData)
-        answer = dataQueue.get(block=True)
+
+	answer = self.sendSyncCommand("HVController", "getFullChannelData", position)
         print("Response from HVController: ", answer)
+	print("Data: ", answer.args())
 
-        daqConfigFile = self.config["DAQConfigFile"][position]
+	daqWorkDir = "%s/%s"%(self.config["DAQConfigPath"], sequenceName)
 
-        daqProcess  = ["PadmeDAQ", "-c", daqConfigFile]
-        logFileName = "%s/log/CrystalTesting_%s_%s_%s.log"%(self.config["DAQConfig"], position, crystalID, voltage)
+	voltage, current, _, setVoltage, setCurrent, _ = answer.args()[0]
+
+        daqConfigFile = self.config["DAQConfigFiles"][position]
+
+	outputFileName = "CrystalTesting_at-%s_CID-%s_Vreal-%s_Ireal-%s_Vset-%s"%(position, crystalID, voltage, current, setVoltage)
+
+        logFileName = "%s/log/%s.log"%(daqWorkDir, outputFileName)
         logFile     = open(logFileName, "wt")
+
+	print("LogFileName  = ", logFileName)
+	print("DAQ Work dir = ", daqWorkDir)
+
+	print("Removing init files from run/")
+	os.system("rm %s/run/init*"%daqWorkDir)
+
+        daqCommand  = [self.config["PadmeDAQexecutable"], "-c", daqConfigFile]
 
         self.logger.info("%s: starting DAQ process for sequence %s, crystal %s@%s with %sV"%(self.name, sequenceName, crystalID, position, voltage))
 
         # for looks - TO REMOVE!
-        time.sleep(1)
-        return "DAQ ran without problems"
+        #time.sleep(1)
+        print("This is what I'm about to exec: %s"%daqCommand)
+        #return "DAQ ran without problems"
 
-        daqProcess = subprocess.Popen(daqProcess, stdout=logFile)
+	daqProcess = subprocess.Popen(daqCommand, stdout=logFile, cwd=daqWorkDir)
+	print("This is the process: ", daqProcess)
 
         self.status = "running"
-        self.daqPid = daqProcess.pid()
+        self.daqPid = daqProcess.pid
 
         self.logger.info("%s: DAQ process started with pid %d"%(self.name, self.daqPid))
 
@@ -54,6 +68,21 @@ class RCController(pccBaseModule.BaseModule):
                 notDone = False
             else:
                 time.sleep(1)
+
+	logFile.close()
+
+	outputDAQdata = os.popen("ls -1 %s/data/CrystalCheck*"%daqWorkDir)
+	outputDAQfile = outputDAQdata.readlines()[-1].strip()
+	outputDAQdata.close()
+
+
+	dt = outputDAQfile.split("+")[1]
+	dataFileName = "%s/data/%s%s"%(daqWorkDir, outputFileName, dt)
+
+	print("Found the DAQ file: %s"%outputDAQfile)
+	print("Moving it to: %s"%dataFileName)
+
+	os.system("mv %s %s"%(outputDAQfile, dataFileName))
 
         self.logger.info("%s: DAQ process %d finished with return value %d"%(self.name, self.daqPid, rv))
 

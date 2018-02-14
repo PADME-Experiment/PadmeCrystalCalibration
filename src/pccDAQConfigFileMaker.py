@@ -11,8 +11,8 @@ daqFile = [
 ("initok_file","run/initok_b00"),
 ("initfail_file","run/initfail_b00"),
 ("lock_file","run/lock_b00"),
-("data_file","data/daq_b00"),
-("total_daq_time","300"),  # => 5 mins
+("data_file","data/CrystalCheck+"),
+("total_daq_time","5"),  # => 5 mins
 ("startdaq_mode","0"),
 ("trigger_mode","1"),
 ("trigger_iolevel","NIM"),
@@ -24,9 +24,9 @@ daqFile = [
 ("drs4corr_enable","1"),
 ("drs4_sampfreq","2"),
 ("daq_loop_delay","100000"),
-("file_max_duration","60"),
+("file_max_duration","6000"),
 ("file_max_size","1073741824"),
-("file_max_events","5000"),
+("file_max_events","50000000"),
 ("zero_suppression","0"),
 ]
 
@@ -39,12 +39,12 @@ ChannelsMap = {
    "02": (2,  2 ), 
    "03": (3,  3 ), 
    "04": (4,  4 ), 
-   "20": (5,  5 ), 
+   "10": (5,  5 ), 
    "11": (6,  6 ), 
    "12": (7,  7 ), 
    "13": (8,  8 ), 
    "14": (9,  9 ), 
-   "10": (10, 10),  
+   "20": (10, 10),  
    "21": (11, 11),  
    "22": (12, 12),  
    "23": (13, 13),  
@@ -61,6 +61,10 @@ ChannelsMap = {
    "44": (24, 24),  
 }
 
+def positionToChannel(position):
+    pY, pX = [int(x) for x in position]
+    return pX+5*pY
+
 def mkDaqConfigDir(path):
     if os.path.isdir(path):
         #weird... it should not exist
@@ -74,8 +78,8 @@ def mkDaqConfigDir(path):
         os.mkdir("%s/data"%path)
 
 def mkDaqConfigFile(path, daqFileID, crystalPosition, **kvs):
-    daqFileName ="%s/cfg/%s_%s.cfg"%(path, DAQ_FILE_NAME, crystalPosition)
-    of = open(daqFileName,"wt")
+    daqFileName ="cfg/%s_%s.cfg"%(DAQ_FILE_NAME, crystalPosition)
+    of = open("%s/%s"%(path,daqFileName),"wt")
     for key, value in daqFile:
         if key in kvs:
             value = kvs[key]
@@ -87,5 +91,6 @@ def mkDaqConfigFile(path, daqFileID, crystalPosition, **kvs):
             value ="0x%d"%(1<<(ChannelsMap[crystalPosition][0]//8))
         elif key =="channel_enable_mask":
             value ="0x%08x"%(1<<ChannelsMap[crystalPosition][0])
-        of.write("%24s %s\n"%(key,value))        
+        of.write("%-24s %s\n"%(key,value))        
     of.close()
+    return daqFileName

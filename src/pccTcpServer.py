@@ -17,7 +17,7 @@ class TcpServer(asyncore.dispatcher):
         self.logger = logger
         self.config = configuration
         self.name = "TcpServer"
-        self.port = self.config["TCPPort"]
+        self.port = int(self.config["TCPPort"])
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         self.set_reuse_addr()
         self.bind(("", self.port))

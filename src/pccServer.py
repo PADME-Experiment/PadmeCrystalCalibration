@@ -8,6 +8,7 @@ Created on Wed Sep 20 12:11:54 2017
 from __future__ import print_function
 import argparse
 import os
+import re
 import signal
 import sys
 import time
@@ -61,13 +62,32 @@ def parseArguments():
     return parser.parse_args()
 
 
+#def loadConfiguration(fname="pcc_configuration.txt"):
+#    configuration = {}
+#    configuration["MovementServer"] = "192.168.0.52"
+#    configuration["TCPPort"] = 42424
+#    configuration["DAQConfigPath"] = "./"
+#    return configuration    
+
 def loadConfiguration(fname="pcc_configuration.txt"):
-    configuration = {}
-    configuration["MovementServer"] = "192.168.0.52"
-    configuration["TCPPort"] = 42424
-    configuration["DAQConfigPath"] = "./"
-    return configuration    
-    
+    try:
+         conffile = open(fname)
+    except:
+        print("There was a problem opening the config file %s"%fname)
+        sys.exit(-1)
+    info = conffile.readlines()
+    conffile.close()
+
+    data = {}
+    confLine = re.compile("^\s*(\w+)\s*=\s*(.*)\s*$")
+    for line in info:
+        yy = confLine.match(line)
+        if yy:
+            k, v = yy.groups()
+            data[k] = v
+
+    print("Data: ", data) 
+    return data
 
 if __name__ == "__main__":
     

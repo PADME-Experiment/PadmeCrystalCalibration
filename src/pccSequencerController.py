@@ -110,7 +110,7 @@ class Sequencer(pccBaseModule.BaseModule):
                     vs = voltageSet.split(":")
                     if len(vs) != 5:
                         vsmin, vsmax = [float(x) for x in voltageSet.split("-")]
-                        delta = vsmax-vsmin/4.
+                        delta = (vsmax-vsmin)/4.
                         vs = [vsmin, vsmin+delta, vsmin+2*delta, vsmin+3*delta, vsmax]
                     else:
                         vs = [float(x) for x in vs]
@@ -135,6 +135,7 @@ class Sequencer(pccBaseModule.BaseModule):
                 cf = dm.mkDaqConfigFile(daqPath, "CrystalTesting", position)
                 daqConfigFiles[position] = cf
 
+	print(daqConfigFiles)
         self.config["DAQConfigFiles"] = daqConfigFiles
 
     def createSequence(self):
@@ -163,7 +164,7 @@ class Sequencer(pccBaseModule.BaseModule):
 
         sequenceIndex = 0
         self.theSequence = []
-        self.theSequence.append(("resetXY", 0))
+        #self.theSequence.append(("resetXY", 0))
         self.theSequence.append(("setHV", dataPoints[sequenceIndex]))
         self.theSequence.append(("syncState", 0))
 
@@ -172,10 +173,10 @@ class Sequencer(pccBaseModule.BaseModule):
             print(self.crystalXsize, self.crystalYsize, pX, pY)
             print("Loading steps for:", sequenceIndex, dataPoints[sequenceIndex])
             if crystalID != "disabled":
-                xAbs = int((pX-0.5) * self.crystalXsize - self.initialXoffset)
-                yAbs = int((pY-0.5) * self.crystalYsize - self.initialYoffset)
+                xAbs = int(pX * self.crystalXsize - self.initialXoffset)
+                yAbs = int(pY * self.crystalYsize - self.initialYoffset)
                 self.theSequence.append(("moveXY", (xAbs, yAbs)))
-                #print("move")
+                print("moveTo", xAbs, yAbs)
 
             if sequenceIndex < len(dataPoints)-1:
                 if dataPoints[sequenceIndex+1][4] != "disabled":
@@ -185,7 +186,7 @@ class Sequencer(pccBaseModule.BaseModule):
             
             if crystalID != "disabled":
                 self.theSequence.append(("runDAQ", (self.sequenceName, position, crystalID)))
-                #print("runDAQ")
+                print("runDAQ")
             self.theSequence.append(("syncState",0))
 
             sequenceIndex+=1 
@@ -259,6 +260,8 @@ class Sequencer(pccBaseModule.BaseModule):
 
 
     def resetXY(self, theTokenId, args):
+	print("here I would normally reset the position...")
+	return "Done"
         return pccCommandCenter.Command(("MoveController", "resetXY"), tokenId=theTokenId, answerQueue=self.inputQueue)
 
     def moveXY(self, theTokenId, args):

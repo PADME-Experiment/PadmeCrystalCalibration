@@ -13,6 +13,16 @@ class Command(object):
         else:
             self.wantAnswer = False
 
+    def __repr__(self):
+        if self.wantAnswer:
+            strRepr = "Command(To:%s, Cmd:%s, Args:%s, TokenId:%d, AnswerQueue:%s)"%(self.receiver(), self.command(), self.args(), self.tokenId(), self.answerQueue)
+        else:
+            strRepr = "Command(To:%s, Cmd:%s, Args:%s, TokenId:%s)"%(self.receiver(), self.command(), self.args(), self.tokenId())
+        return strRepr
+
+    def __str__(self):
+        return repr(self)
+
     def receiver(self):
         if len(self.cmd) < 1:
             return "Receiver:absent "

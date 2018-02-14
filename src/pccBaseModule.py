@@ -25,6 +25,14 @@ class BaseModule(threading.Thread):
     def setCommandQueue(self, queue):
         self.commandQueue = queue
 
+    def sendSyncCommand(self, service, command, *args):
+        dataQueue = Queue.Queue()
+        infoData = pccCommandCenter.Command((service, command)+args, answerQueue = dataQueue)
+        self.commandQueue.put(infoData)
+        answer = dataQueue.get(block=True)
+        self.logger.debug("SyncMessage - Response from %s: %s "%(service, answer))
+	return answer
+
     def exit(self):
         #self.commandQueue.put("exitNowPlease")
         self.goOn = False
