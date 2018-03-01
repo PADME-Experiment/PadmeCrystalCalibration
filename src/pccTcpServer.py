@@ -5,6 +5,7 @@ import sys
 import time
 import tsdict
 import pccCommandCenter
+import pccLogger
 
 if sys.version_info.major == 3:
     import queue as Queue
@@ -14,9 +15,9 @@ else:
 class TcpServer(asyncore.dispatcher):
     def __init__(self, logger, configuration):
         asyncore.dispatcher.__init__(self)
-        self.logger = logger
-        self.config = configuration
+	self.config = configuration
         self.name = "TcpServer"
+        self.logger = pccLogger.PadmeLoggerProxy(logger, self.name, level=True)
         self.port = int(self.config["TCPPort"])
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         self.set_reuse_addr()

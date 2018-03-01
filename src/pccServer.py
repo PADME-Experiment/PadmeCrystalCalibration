@@ -104,6 +104,7 @@ if __name__ == "__main__":
     threadList.append(theLogger)
     theLogger.start()
     theLogger.addWriter("print", pccLogger.PrintLoggerObject())
+    theLogger.addWriter("write2file", pccLogger.LogMessage("%s/pcc_server.log"%configuration["DAQConfigPath"]))
     theLogger.trace("logger is active...")
 
     # create the CommandCenter

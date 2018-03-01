@@ -1,8 +1,10 @@
 import pccBaseModule
 import pccCommandCenter
 import pccDAQConfigFileMaker as dm
+import copy
 import os
 import sys
+import threading
 
 if sys.version_info.major == 3:
     import queue as Queue
@@ -43,6 +45,7 @@ class Sequencer(pccBaseModule.BaseModule):
     def __init__(self, logger, configuration, sequenceConfigFile):
         pccBaseModule.BaseModule.__init__(self, logger, configuration)
         self.name = "Sequencer"
+	self.setupLoggerProxy()
         self.sequenceConfigFile = sequenceConfigFile
 
         # Load the actual test setup
@@ -60,6 +63,12 @@ class Sequencer(pccBaseModule.BaseModule):
         # Prepare the test sequences
         self.createSequence()
 
+        self.dataMutex  = threading.Lock()
+        self.pauseNow   = False
+        self.stopNow    = False
+        self.runningNow = False
+        
+
     def setupCmdDict(self):
         #self.cmdDict["status"] = self.status
         #self.cmdDict["getSequence"] = self.getSequence
@@ -67,7 +76,31 @@ class Sequencer(pccBaseModule.BaseModule):
         self.cmdDict["moveXY"] = self.moveXY
         self.cmdDict["setHV"] = self.setHV
         self.cmdDict["runDAQ"] = self.runDAQ
+	self.cmdDict["turnOnChannels"] = self.turnOnChannels
+	self.cmdDict["turnOffChannels"] = self.turnOffChannels
+	self.cmdDict["setHVtoSafe"] = self.setHVtoSafe
 
+    def stop(self):
+        self.dataMutex.acquire_lock()
+        self.stopNow = True
+        self.dataMutex.release_lock()
+
+    def pause(self):
+        self.dataMutex.acquire_lock()
+        self.pauseNow = True
+        self.dataMutex.release_lock()
+        
+    def resume(self):
+        self.dataMutex.acquire_lock()
+        self.stopNow = False
+        self.dataMutex.release_lock()
+
+    def status(self):
+        self.dataMutex.acquire_lock()
+        datum = (self.runningNow, self,pauseNow, self,stopNow)
+        self.dataMutex.release_lock()
+        return datum
+        
     def readInConfiguration(self):
         self.hasTestSetConfig = False
         if not os.path.isfile(self.sequenceConfigFile):
@@ -83,7 +116,7 @@ class Sequencer(pccBaseModule.BaseModule):
         self.testSetConfig = dict(map(lambda y: (y[0].strip(), y[1].strip()), map(lambda x: x.strip().split("="), myConfig2)))
         self.hasTestSetConfig = True
 
-        print(self.testSetConfig)
+        self.logger.debug(self.testSetConfig)
 
         self.sequenceName = self.testSetConfig["SequenceName"]
 
@@ -101,9 +134,9 @@ class Sequencer(pccBaseModule.BaseModule):
         for pX in range(5):
             for pY in range(5):
                 CrystalID = "Crystal%d%d"%(pX,pY)
-                print(pX, pY, CrystalID)
+                self.logger.debug(pX, pY, CrystalID)
                 if CrystalID in self.testSetConfig:
-                    print("found")
+                    self.logger.debug("found")
                     datum = self.testSetConfig[CrystalID]
                     crystalID, voltageSet = datum.split()
 
@@ -121,7 +154,7 @@ class Sequencer(pccBaseModule.BaseModule):
 
                     self.crystalMatrix[pX][pY] = ("%d%d"%(pX,pY), crystalID, vs)
             
-        print("This is the crystal matrix: ", self.crystalMatrix)
+        self.logger.debug("This is the crystal matrix: ", self.crystalMatrix)
 
     def setupDAQ(self):
         daqPath = "%s/%s"%(self.config["DAQConfigPath"], self.sequenceName)
@@ -135,7 +168,7 @@ class Sequencer(pccBaseModule.BaseModule):
                 cf = dm.mkDaqConfigFile(daqPath, "CrystalTesting", position)
                 daqConfigFiles[position] = cf
 
-	print(daqConfigFiles)
+        self.logger.debug(daqConfigFiles)
         self.config["DAQConfigFiles"] = daqConfigFiles
 
     def createSequence(self):
@@ -147,10 +180,10 @@ class Sequencer(pccBaseModule.BaseModule):
             for col in step[1][1]:
                 dataPoints.append((vIdx, row, col, self.crystalMatrix[row][col][0], self.crystalMatrix[row][col][1], self.crystalMatrix[row][col][2]))
 
-        print("Always the crystal matrix: ", self.crystalMatrix)
+        self.logger.debug("Always the crystal matrix: ", self.crystalMatrix)
 
-        self.crystalXsize = int(self.testSetConfig["CrystalXSize"])
-        self.crystalYsize = int(self.testSetConfig["CrystalYSize"])
+        self.crystalXsize = int(self.config["CrystalXSize"])
+        self.crystalYsize = int(self.config["CrystalYSize"])
 
         # These two parameters are the position of the "zero" of 
         # the stepper motors with respect to the corner of the crystal array
@@ -159,67 +192,105 @@ class Sequencer(pccBaseModule.BaseModule):
         # For the "center" of crystal pXpY:
         # Xabs = (pX-0.5)*crystalXSize - initialXoffset
         # Yabs = (pY-0.5)*crystalYSize - initialYoffset
-        self.initialXoffset = int(self.testSetConfig["InitialXOffset"])
-        self.initialYoffset = int(self.testSetConfig["InitialYOffset"])
+        self.initialXoffset = int(self.config["InitialXOffset"])
+        self.initialYoffset = int(self.config["InitialYOffset"])
 
         sequenceIndex = 0
         self.theSequence = []
-        #self.theSequence.append(("resetXY", 0))
+	self.theSequence.append(("setHVtoSafe", 0))
+        self.theSequence.append(("syncState", 0))
+	self.theSequence.append(("turnOnChannels", 0))
+        self.theSequence.append(("syncState", 0))
         self.theSequence.append(("setHV", dataPoints[sequenceIndex]))
+	self.theSequence.append(("moveXY", (0,0)))
         self.theSequence.append(("syncState", 0))
 
         while sequenceIndex < len(dataPoints):
-            _, pX, pY, position, crystalID, _ = dataPoints[sequenceIndex]
-            print(self.crystalXsize, self.crystalYsize, pX, pY)
-            print("Loading steps for:", sequenceIndex, dataPoints[sequenceIndex])
-            if crystalID != "disabled":
+            vIdx, pY, pX, position, crystalID, voltages = dataPoints[sequenceIndex]
+            #self.logger.debug("Loading steps for:", sequenceIndex, dataPoints[sequenceIndex])
+            if crystalID != "disabled" and voltages[vIdx] !=0.:
                 xAbs = int(pX * self.crystalXsize - self.initialXoffset)
                 yAbs = int(pY * self.crystalYsize - self.initialYoffset)
+            	self.logger.debug("Working on crystal %s @ row=%d column=%d, voltage point #%d"%(crystalID, pY, pX, vIdx))
+
+                self.logger.debug("setHV to %dV"%voltages[vIdx])
+                self.theSequence.append(("setHV", dataPoints[sequenceIndex]))
+
+                self.logger.debug("moveXY to (%d,%d)"%(xAbs, yAbs))
                 self.theSequence.append(("moveXY", (xAbs, yAbs)))
-                print("moveTo", xAbs, yAbs)
 
-            if sequenceIndex < len(dataPoints)-1:
-                if dataPoints[sequenceIndex+1][4] != "disabled":
-                    self.theSequence.append(("setHV", dataPoints[sequenceIndex+1]))
-                    #print("HV")
-            self.theSequence.append(("syncState", 0))
-            
-            if crystalID != "disabled":
+                self.theSequence.append(("syncState", 0))
+
+                self.logger.debug("runDAQ")            
                 self.theSequence.append(("runDAQ", (self.sequenceName, position, crystalID)))
-                print("runDAQ")
-            self.theSequence.append(("syncState",0))
+                self.theSequence.append(("syncState",0))
 
-            sequenceIndex+=1 
+            sequenceIndex += 1
 
-            theSequence2 = []
-            syncStateLast = False
-            for entry in self.theSequence:
-                if entry[0] == "syncState":
-                    if not syncStateLast: 
-                        syncStateLast = True
-                        theSequence2.append(entry)
-                else:
-                    syncStateLast = False
+	self.theSequence.append(("turnOffChannels", 0))
+        self.theSequence.append(("syncState", 0))
+        self.theSequence.append(("setHVtoSafe", 0))
+        self.theSequence.append(("moveXY", (0,0)))
+        self.theSequence.append(("syncState", 0))
+
+        # here I'm simply filtering out multiple syncStates which are unnecessary
+        theSequence2 = []
+        syncStateLast = False
+        for entry in self.theSequence:
+            if entry[0] == "syncState":
+                if not syncStateLast: 
+                    syncStateLast = True
                     theSequence2.append(entry)
+            else:
+                syncStateLast = False
+                theSequence2.append(entry)
 
-            self.theSequence = theSequence2
+        self.theSequenceStored = theSequence2
+        self.theSequence = copy.copy(self.theSequenceStored)
 
             #for entry in self.theSequence:
-            #    print(entry)
+            #    self.logger.debug(entry)
+
+    def startFrom(self, vIdx, px, py):
+        self.logger.debug("Sequencer trying to start from: %d @ %d,%d"%(vIdx, px, py))
+        self.theSequence = copy.copy(self.theSequenceStored)
+        while 1:
+	    if self.theSequence[0][0] == "setHV":
+	            vc, xc, yc, _,_,_ = self.theSequence[0][1]
+		    self.logger.debug("Current entry: %d @ %d,%d"%(vc, xc, yc))
+		    self.logger.debug("%s %s %s"%(vc==vIdx, xc==px, yc==py))
+            	    if vc==vIdx and xc==px and yc==py:
+             		break
+	    elif len(self.theSequence)==0:
+		    self.logger.info("Nothing left in the sequence... check the input parameters!")
+	            break
+            self.theSequence.pop(0)
+
+	if len(self.theSequence)>0:
+        	self.theSequence.insert(0, ("syncState", 0))
+		self.theSequence.insert(0, ("turnOnChannels", 0))
+        	self.theSequence.insert(0, ("syncState", 0))
+		self.theSequence.insert(0, ("setHVtoSafe", 0))
+        	self.start()
 
     def run(self):
         
         commandDict = self.cmdDict
-        print("Sequence command queue: ", self.commandQueue)
+        self.logger.debug("Sequence command queue: ", self.commandQueue)
 
         tokenDict = {}
-        msgTokenId = 65536 # base value for toeknID
+        msgTokenId = 65536 # base value for tokenID
 
         if not self.hasTestSetConfig:
-            self.logger.warn("The sequencer cannot run due to a configuration problem.")
+            self.logger.warn("The sequencer cannot run due to a configuration problem (no sequence loaded).")
             return "The sequencer cannot run due to a configuration problem."
 
         self.goOn = True
+        
+        self.dataMutex.acquire_lock()
+        self.runningNow = True
+        self.dataMutex.release_lock()
+
         while self.goOn:
             commandList = []
             freeState = True
@@ -245,22 +316,23 @@ class Sequencer(pccBaseModule.BaseModule):
                 try:
                     # this works also as a "sleep"
                     cmd = self.inputQueue.get(timeout=0.01)
-                    print("tokenDict: ", tokenDict)
-                    print("Got this back: ", cmd.command(), cmd.tokenId(), cmd.args())
+                    self.logger.debug("tokenDict: ", tokenDict)
+                    self.logger.debug("Got this back: ", cmd.command(), cmd.tokenId(), cmd.args())
                     retTokenId = int(cmd.tokenId())
                     if retTokenId in tokenDict:
-                        print(retTokenId, "is in ", tokenDict)
+                        self.logger.debug(retTokenId, "is in ", tokenDict)
                         del(tokenDict[retTokenId])
-                    print("tokenDict: ", tokenDict)
+                    self.logger.debug("tokenDict: ", tokenDict)
 
                 except Queue.Empty:
                     pass
             self.logger.info("%s: sequence %s complete."%(self.name, self.sequenceName))
             self.goOn = False
+            self.runningNow = False
 
 
     def resetXY(self, theTokenId, args):
-	print("here I would normally reset the position...")
+	self.logger.debug("here I would normally reset the position...")
 	return "Done"
         return pccCommandCenter.Command(("MoveController", "resetXY"), tokenId=theTokenId, answerQueue=self.inputQueue)
 
@@ -271,25 +343,41 @@ class Sequencer(pccBaseModule.BaseModule):
         return pccCommandCenter.Command(("HVController", "setHV", args), tokenId=theTokenId, answerQueue=self.inputQueue)
         
     def runDAQ(self, theTokenId, args):
-        print("runDAQ: ", args) # sequenceName, position, crystalID
+        self.logger.debug("runDAQ: ", args) # sequenceName, position, crystalID
         return pccCommandCenter.Command(("RCController", "runDAQ", args[0], args[1], args[2]), tokenId=theTokenId, answerQueue=self.inputQueue)
+
+    def setHVtoSafe(self, theTokenId, args):
+	self.logger.debug("Setting all Vset to safe value (0V)")
+        return pccCommandCenter.Command(("HVController", "setHVtoSafe", args), tokenId=theTokenId, answerQueue=self.inputQueue)
+
+    def turnOnChannels(self, theTokenId, args):
+	self.logger.debug("Turning ON all HV channels")
+        return pccCommandCenter.Command(("HVController", "doAllChanOn", args), tokenId=theTokenId, answerQueue=self.inputQueue)
+
+    def turnOffChannels(self, theTokenId, args):
+	self.logger.debug("Turning OFF all HV channels")
+        return pccCommandCenter.Command(("HVController", "doAllChanOff", args), tokenId=theTokenId, answerQueue=self.inputQueue)
 
 
 class SequencerController(pccBaseModule.BaseModule):
     def __init__(self, logger, configuration):
         pccBaseModule.BaseModule.__init__(self, logger, configuration)
         self.name = "SequencerController"
+	self.setupLoggerProxy()
         self.theSequencer = None
 
     #def exit(self):
     #     self.logger.warn("This needs to do a little more than the usual...")
 
     def setupCmdDict(self):
-        self.cmdDict["loadSequence"]    = self.loadSequence
-        self.cmdDict["sequencerStart"]  = self.startSequence
-        self.cmdDict["sequencerStop"]   = self.stopSequence
-        self.cmdDict["sequencerStatus"] = self.sequencerStatus
-
+        self.cmdDict["loadSequence"]       = self.loadSequence
+        self.cmdDict["sequencerStart"]     = self.startSequence
+        self.cmdDict["sequencerStop"]      = self.stopSequence
+        self.cmdDict["sequencePause"]      = self.pauseSequence
+        self.cmdDict["sequenceResume"]     = self.resumeSequence
+        self.cmdDict["sequencerStatus"]    = self.sequencerStatus
+        self.cmdDict["sequencerStartFrom"] = self.startSequenceFrom 
+ 
     def loadSequence(self, *args):
         fname = args[0]
         if os.path.isfile(fname):
@@ -308,8 +396,34 @@ class SequencerController(pccBaseModule.BaseModule):
         else:
             self.logger.warn("%s: could not start sequencer"%self.name)
     
+    def startSequenceFrom(self, *args):
+        vIdx, px, py = [int(x) for x in args]
+        if self.theSequencer:
+            self.logger.info("%s: starting sequencer from position row=%d, column=%d @ voltage point=%d"%(self.name, py, px, vIdx))
+            self.theSequencer.startFrom(vIdx, px, py)
+        else:
+            self.logger.warn("%s: could not start sequencer"%self.name)            
+
     def stopSequence(self):
-        pass
+        if self.theSequencer:
+            self.theSequencer.stop()
+            self.logger.info("%s: stopping sequencer"%self.name)
+        else:
+            self.logger.warn("%s: could not stop sequencer as it doesn't exist"%self.name)            
+
+    def resumeSequence(self):
+        if self.theSequencer:
+            self.theSequencer.resume()
+            self.logger.info("%s: resuming sequencer"%self.name)
+        else:
+            self.logger.warn("%s: could not resume sequencer as it doesn't exist"%self.name)            
+        
+    def pauseSequence(self):
+        if self.theSequencer:
+            self.theSequencer.pause()
+            self.logger.info("%s: pausing sequencer"%self.name)
+        else:
+            self.logger.warn("%s: could not pause sequencer as it doesn't exist"%self.name)            
 
     def sequencerStatus(self):
         pass

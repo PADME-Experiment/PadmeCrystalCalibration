@@ -3,6 +3,7 @@ import sys
 import threading
 import tsdict
 import pccCommandCenter
+import pccLogger
 
 if sys.version_info.major == 3:
     import queue as Queue
@@ -19,8 +20,11 @@ class BaseModule(threading.Thread):
         self.cmdDict = {}
         self.setupCmdDict()
 
+    def setupLoggerProxy(self):
+        self.logger = pccLogger.PadmeLoggerProxy(self.logger, self.name, level=True)
+
     def setupCmdDict(self):
-        self.logger.error(self.name, "module does not have a configured cmdDict.")
+        self.logger.error("[ERROR] %s: module does not have a configured cmdDict."%self.name)
 
     def setCommandQueue(self, queue):
         self.commandQueue = queue
@@ -31,7 +35,7 @@ class BaseModule(threading.Thread):
         self.commandQueue.put(infoData)
         answer = dataQueue.get(block=True)
         self.logger.debug("SyncMessage - Response from %s: %s "%(service, answer))
-	return answer
+        return answer
 
     def exit(self):
         #self.commandQueue.put("exitNowPlease")
@@ -54,7 +58,7 @@ class BaseModule(threading.Thread):
             self.logger.debug(self.name, ": received message to", cmd.receiver(), cmd.command(), cmd.tokenId())
             self.processCommand(cmd)
             
-        print(self.name, "farewell...")
+        self.logger.info("exiting, farewell...")
                 
     def processCommand(self, cmd):
         theCommand = cmd.command()

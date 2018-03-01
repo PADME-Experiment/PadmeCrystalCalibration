@@ -126,6 +126,7 @@ class CmdLine(cmd.Cmd):
 if __name__ == '__main__':
     goOn = True
 
+    # THIS HAS TO READ THE CONFIGURATION!!!!!
     client = pccClient("127.0.0.1", 42424)
     clientThread = muThread()
     clientThread.start()

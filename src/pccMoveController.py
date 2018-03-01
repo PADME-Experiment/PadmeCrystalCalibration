@@ -7,12 +7,13 @@ class MoveController(pccBaseModule.BaseModule):
     def __init__(self, logger, configuration):
         pccBaseModule.BaseModule.__init__(self, logger, configuration)
         self.name = "MoveController"
+	self.setupLoggerProxy()
         self.arduinoAddress = self.config["MovementServer"]
         self.currentX = 0
         self.currentY = 0
 	self.mcOffline = True	
 	data = self.read_position()
-	print(data)
+	self.logger.trace("%s"%" ".join([str(x).strip() for x in data]))
 	if not self.mcOffline:
 		pos = data[0][2].split(";")
         	self.currentX = int(pos[0].split("=")[1])
@@ -35,7 +36,7 @@ class MoveController(pccBaseModule.BaseModule):
     def httpGet(self, *getData):
         gd = "/".join(getData)
         self.logger.debug(gd)
-        print(self.arduinoAddress)
+        self.logger.debug(self.arduinoAddress)
 	if "SimulationMode" in self.config and self.config["SimulationMode"] == "True":
 		return (200, "OK", "This is just a simulation...")
 
@@ -52,12 +53,12 @@ class MoveController(pccBaseModule.BaseModule):
         time.sleep(0.4)
         response = conn.getresponse()
         data2return = (response.status, response.reason, response.read())
-        self.logger.debug("%d %s %s"%data2return)
+        self.logger.trace("%d %s %s"%data2return)
         conn.close()
         return data2return
 
     # Arduino commands --
-    # Here is assume that the zero position corresponds to the source
+    # Here we assume that the zero position corresponds to the source
     # being correctly centered on the crystal (0,0).
     # All movements shall be considered relative to this position!
     def set_zero(self):
@@ -73,7 +74,7 @@ class MoveController(pccBaseModule.BaseModule):
 	return (info, (self.currentX, self.currentY))
 
     def move_xy(self, xval, yval):
-	print("Move XY: ", xval, yval)
+	self.logger.trace("Move XY: %d,%d"%(xval, yval))
 	info1 = self.set_xabs(xval, True)
 	while not self.idle():
 		time.sleep(0.1)
@@ -160,4 +161,4 @@ class MoveController(pccBaseModule.BaseModule):
 	elif response[0][0] == 200:
 		return True
 	else:
-		return False
+		return false

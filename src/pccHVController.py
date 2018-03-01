@@ -3,7 +3,6 @@ import os
 import time
 
 def HVchannel(position, *discard):
-    print("HVchannel: ", position)
     #position = positionTuple[0]
     pY, pX = [int(x) for x in position]
     return pY*5+pX
@@ -12,10 +11,17 @@ class HVController(pccBaseModule.BaseModule):
     def __init__(self, logger, configuration):
         pccBaseModule.BaseModule.__init__(self, logger, configuration)
         self.name = "HVController"
+	self.setupLoggerProxy()
 
 	self.safeReadMode = False
 	if "HVSafeReadMode" in self.config and self.config["HVSafeReadMode"] == "True":
 		self.safeReadMode = True
+
+	self.syncMode = False
+	if "HVVSetSyncMode" in self.config and self.config["HVVSetSyncMode"] == "True":
+		self.syncMode = True
+
+	self.logger.debug("HVcontroller configuration => HVSafeReadMode: %s - HVVSetSyncMode: %s"%(self.safeReadMode, self.syncMode))
 
         #self.hvExec = "/home/daq/PCT_HV/PCT_HV -s 0 -c %d %s 2>/dev/null"
 	#self.globalHvExec = "/home/daq/PCT_HV/PCT_HV -C %s 2>/dev/null"
@@ -43,14 +49,15 @@ class HVController(pccBaseModule.BaseModule):
 			return [-424242]*25 
 
     def execPCT_HV(self, position, command):
-        print("Sto passando: ", position)
+        self.logger.debug("Argument to execPCT_HV: %s"%position)
         channel = HVchannel(position)
+	self.logger.debug("Working on HV channel: %d"%channel)
 	
 	while True:
 	        dataChan = os.popen(self.hvExec%(channel, command))
         	data = dataChan.readlines()
         	dataChan.close()
-        	print(data)
+        	self.logger.debug(data)
 	
 		if len(data)>0:
 		        return data[-1]
@@ -78,6 +85,7 @@ class HVController(pccBaseModule.BaseModule):
 	self.cmdDict["allHVStatus"] = self.loadCurrentStatus
 	self.cmdDict["doAllChanOn"] = self.doAllChanOn
 	self.cmdDict["doAllChanOff"] = self.doAllChanOff
+	self.cmdDict["setHVtoSafe"] = self.setHVtoSafe
 
     def loadCurrentStatus(self):
 	powerInfo = self.grabGlobalData("-S")
@@ -97,7 +105,7 @@ class HVController(pccBaseModule.BaseModule):
 			float(setCurrentInfo[x]),
 			float(setImpedanceInfo[x]) 
 			)
-		print("%02d"%x, self.HVMap[x])
+		self.logger.debug("%02d"%x, self.HVMap[x])
 
 
     def doAllChanOn(self, *discard):
@@ -105,6 +113,9 @@ class HVController(pccBaseModule.BaseModule):
 
     def doAllChanOff(self, *discard):
 	return self.grabGlobalData("-0")
+
+    def setHVtoSafe(self, *discard):
+	return self.grabGlobalData("-H 0")
 
     def checkHV(self, position, *discard):
 	status = self.status(position)
@@ -114,7 +125,7 @@ class HVController(pccBaseModule.BaseModule):
 	
 	voltage = -424242
 	setVoltage = -424242
-	delta = 0.1 # Volt
+	delta = 1. # Volt, 'cause Paolo said so.
 
 	while setVoltage == -424242:
 		time.sleep(0.5)
@@ -144,17 +155,21 @@ class HVController(pccBaseModule.BaseModule):
 	return dataCurrent+dataSet
 
     def setHVfake(self, position, index, *discard):
-	return self.setHV(int(index), 1, 1, position, "pippo", [1000, 1100, 1200, 1300, 1400])
+	return self.setHV((int(index), 1, 1, position, "pippo", [452, 557, 623, 717, 884]))
 
     def setHV(self, args):
-	print(args)
+	self.logger.debug(args)
         vPoint, posX, posY, position, crystalID, voltages = args
 	vPoint = int(vPoint)
-        print(vPoint, posX, posY, position, crystalID, voltages)
+        self.logger.debug(vPoint, posX, posY, position, crystalID, voltages)
         
-        print("here I'm supposed to set the HV channel for crystal %s to the specified value of %d"%(crystalID, voltages[vPoint]))
-        print("The relevant channelId is: ", HVchannel(position))
-	return self.execPCT_HV(position, "-H %d"%voltages[vPoint])
+        self.logger.debug("here I'm supposed to set the HV channel for crystal %s to the specified value of %d"%(crystalID, voltages[vPoint]))
+        self.logger.debug("The relevant channelId is: %d "%HVchannel(position))
+	answer1 = self.execPCT_HV(position, "-H %d"%voltages[vPoint])
+	answer2 = None
+	if self.syncMode == True:
+		answer2 = self.checkHV(position)
+	return (answer1, answer2)
 
     def turnOnChannel(self, position, *discard):
 	return self.execPCT_HV(position, "-1")

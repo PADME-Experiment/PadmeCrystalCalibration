@@ -53,6 +53,7 @@ class PadmeLogger(threading.Thread):
         self.goOn = False
 
     def run(self):
+        self.printLog("Logger starting -----------------------------------------------------")
         self.goOn = True
         while self.goOn:
             try:
@@ -61,7 +62,9 @@ class PadmeLogger(threading.Thread):
                 continue
             self.printLog(*data)
 
-        print("Farewell...")
+        print("Farewell, logger exiting...")
+        for _, logger in self.destinations.items():
+            logger.close()
 
     def addWriter(self, name, writer_object):
         self.destinations[name] = writer_object
@@ -77,6 +80,55 @@ class PadmeLogger(threading.Thread):
 
     def status(self):
         return self.destinations.keys()
+
+
+class PadmeLoggerProxy(object):
+    def __init__(self, theRealLogger, aString, level=False):
+        self.theRealLogger = theRealLogger
+        self.aString       = aString
+        self.showLevel     = level
+
+    def trace(self, *data, **kwds):
+        if self.showLevel:
+            msg = "[TRACE] %15s"%self.aString
+        else:
+            msg = "%15s"%self.aString
+        self.theRealLogger.trace("%s:"%msg, *data, **kwds)
+
+    def debug(self, *data, **kwds):
+        if self.showLevel:
+            msg = "[DEBUG] %15s"%self.aString
+        else:
+            msg = "%15s"%self.aString
+        self.theRealLogger.debug("%s:"%msg, *data, **kwds)
+
+    def info(self, *data, **kwds):
+        if self.showLevel:
+            msg = "[INFO]  %15s"%self.aString
+        else:
+            msg = "%15s"%self.aString
+        self.theRealLogger.info("%s:"%msg, *data, **kwds)
+
+    def warn(self, *data, **kwds):
+        if self.showLevel:
+            msg = "[WARN]  %15s"%self.aString
+        else:
+            msg = "%15s"%self.aString
+        self.theRealLogger.warn("%s:"%msg, *data, **kwds)
+
+    def error(self, *data, **kwds):
+        if self.showLevel:
+            msg = "[ERROR] %15s"%self.aString
+        else:
+            msg = "%15s"%self.aString
+        self.theRealLogger.error("%s:"%msg, *data, **kwds)
+
+    def fatal(self, *data, **kwds):
+        if self.showLevel:
+            msg = "[FATAL] %15s"%self.aString
+        else:
+            msg = "%15s"%self.aString
+        self.theRealLogger.fatal("%s:"%msg, *data, **kwds)
 
 
 # base class for writer objects...
@@ -95,8 +147,8 @@ class PrintLoggerObject(PadmeLoggerObject):
         self.file = file
 
     def print(self, *args):
-        message = " ".join(args)
-        print(message, sep=self.sep, end=self.end, file=self.file)
+        message = " ".join([str(x) for x in args])
+        print(message.strip(), sep=self.sep, end=self.end, file=self.file)
     
 class LogMessage(PadmeLoggerObject):
     def __init__(self, logFileName, dateFormat="[%d %b %Y - %H:%M:%S]"):
@@ -107,16 +159,17 @@ class LogMessage(PadmeLoggerObject):
     def createLogfile(self):
         try:
             testFile = open(self.logFileName)
-        except FileNotFoundError:
+        except IOError:
             self.logfile = open(self.logFileName,"w")
         else:
             self.logfile = open(self.logFileName,"a")
 
     def print(self, *args):
-        message = " ".join(args)
+        message = " ".join([str(x) for x in args])
         dt      = time.strftime(self.dateFormat)
-        message = "%s %s\n"%(dt, message)
-        self.logfile.write(message)
+        message1= "%s %s\n"%(dt, message)
+        self.logfile.write(message1.strip()+"\n")
+        self.logfile.flush()
 
     def close(self):
         self.logfile.flush()

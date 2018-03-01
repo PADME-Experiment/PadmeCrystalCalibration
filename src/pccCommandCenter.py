@@ -52,6 +52,7 @@ class CommandCenter(pccBaseModule.BaseModule):
         pccBaseModule.BaseModule.__init__(self, logger, configuration)
         self.registeredModules = tsdict.TSDict()
         self.name = "CommandCenter"
+	self.setupLoggerProxy()
 
     def setupCmdDict(self):
         self.cmdDict["addModule"]  = self.addModule
