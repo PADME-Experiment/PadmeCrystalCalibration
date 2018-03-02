@@ -25,9 +25,11 @@ class PipelineProcess(pccBaseModule.BaseModule):
         pccBaseModule.BaseModule.__init__(self, logger, config)
         self.command = command
         self.dataQueue = Queue.Queue()
+	self.syncQueue = Queue.Queue()
         self.dataMutex = threading.Lock()
         self.nextStep = []
         self.name = tName
+	self.sync = 0
         self.logger = pccLogger.PadmeLoggerProxy(logger, self.name, level=True)
         self.setCWD()
         self.setLogfiles()
@@ -54,9 +56,13 @@ class PipelineProcess(pccBaseModule.BaseModule):
 
 	self.logger.trace("setting Logfile: %s Errfile: %s"%(self.processLogfile, self.processErrfile))
 
-    def submit(self, data):
+    def submit(self, data, sync=0):
         self.logger.debug("%s: submitted data %s"%(self.name, data))
         self.dataQueue.put(data)
+	self.sync = sync
+	if sync>0:
+		# wait for the sync signal
+		self.syncQueue.get()
 
     def connect(self, nextStep):
         self.dataMutex.acquire_lock()
@@ -107,10 +113,13 @@ class PipelineProcess(pccBaseModule.BaseModule):
 
     def postExec(self, result, data):
         self.logger.debug("postprocessing data %s"%result)
+	newSync = 0
+	if self.sync > 0:
+		newSync = self.sync-1
         self.dataMutex.acquire_lock()        
         if len(self.nextStep)>0:
             for step in self.nextStep:
-                step.submit(result)
+                step.submit(result, newSync)
         self.dataMutex.release_lock()
 
     def run(self):
@@ -122,6 +131,8 @@ class PipelineProcess(pccBaseModule.BaseModule):
                 cmd = self.preExec(data)
                 res = self.executeCommand(cmd, data)
                 self.postExec(res, data)
+		if self.sync>0:
+			self.syncQueue.put("yeah, yeah, I'm done")
             else: 
                 self.postExec("", "")
                 break
@@ -150,8 +161,8 @@ class ProcessingPipeline(object):
         else:
             self.pipelineDict[fromProc].connect(self.pipelineDict[toProc])
 
-    def submit(self, data):
-        self.entryPoint.submit(data)
+    def submit(self, data, sync=0):
+        self.entryPoint.submit(data, sync=sync)
 
     def destroy(self):
         self.entryPoint.submit("")

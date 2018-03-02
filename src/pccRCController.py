@@ -52,7 +52,8 @@ class RCController(pccBaseModule.BaseModule):
             return "DAQ idle"
 
     def runDAQ(self, sequenceName, position, crystalID):
-        daqWorkDir = "%s/%s"%(self.config["DAQConfigPath"], sequenceName)     
-        pass
+        daqWorkDir = "%s/%s"%(self.config["DAQConfigPath"], sequenceName)
         thePP = self.getProcessingPipeline(sequenceName, daqWorkDir)
-        thePP.submit((position, crystalID))
+        # the 1 indicates that we wish to wait for the first step of the processing pipeline to be finished before continuing
+        thePP.submit((position, crystalID), 1) 
+	return "DAQ done"
