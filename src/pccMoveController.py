@@ -161,4 +161,4 @@ class MoveController(pccBaseModule.BaseModule):
 	elif response[0][0] == 200:
 		return True
 	else:
-		return false
+		return False

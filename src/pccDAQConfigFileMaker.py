@@ -12,14 +12,14 @@ daqFile = [
 ("initfail_file","run/initfail_b00"),
 ("lock_file","run/lock_b00"),
 ("data_file","data/CrystalCheck+"),
-("total_daq_time","5"),  # => 5 mins
+("total_daq_time","600"),  # => 10 min 
 ("startdaq_mode","0"),
 ("trigger_mode","1"),
 ("trigger_iolevel","NIM"),
 ("group_enable_mask","0xf"),
 ("channel_enable_mask","0x0000007f"),
 ("offset_global","0x6000"),
-("post_trigger_size","75"),
+("post_trigger_size","50"),
 ("max_num_events_blt","128"),
 ("drs4corr_enable","1"),
 ("drs4_sampfreq","2"),

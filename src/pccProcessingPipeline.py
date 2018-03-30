@@ -192,7 +192,7 @@ class DAQProcess(PipelineProcess):
         daqConfigFile = self.config["DAQConfigFiles"][position]
 
         # create the output fileName
-        self.outputFileName = "CrystalTesting_at-%s_CID-%s_Vreal-%d_Ireal-%d_Vset-%d"%(position, crystalID, voltage, current, setVoltage)
+        self.outputFileName = "CrystalTesting_at-%s_CID-%s_Vreal-%s_Ireal-%s_sVset-%s"%(position, crystalID, voltage, current, setVoltage)
 
         # set the filenames
         logsFileName = "%s/log/%s"%(self.daqWorkDir, self.outputFileName)
@@ -246,7 +246,7 @@ class DAQProcess(PipelineProcess):
 """ The Level1/Merger process """
 class LVL1Process(PipelineProcess):
     def __init__(self, logger, config, daqWorkDir):
-        cmd = "%s -n 0 -d %s "%(config["Level1DAQexecutable"], daqWorkDir)
+        cmd = "%s -n0 -d/ "%config["Level1DAQexecutable"] #, daqWorkDir) filename to process have absolute path
         PipelineProcess.__init__(self, logger, config, "Level1Step", cmd)
 	self.daqWorkDir = daqWorkDir
 	self.setCWD(self.daqWorkDir)
@@ -292,7 +292,9 @@ class AnalysisProcess(PipelineProcess):
 	fname = info[-1]
         logFileName = "%s/log/%s.analysis"%(self.daqWorkDir, fname)
         self.setLogfiles(logFileName, logFileName)
-	return super(AnalysisProcess, self).preExec(data)
+	realDataFile = "%s.l1.root"%fname
+        self.logger.info("Processing file: %s"%realDataFile)
+	return super(AnalysisProcess, self).preExec(realDataFile)
 
     def postExec(self, result, data):
         self.logger.debug("postprocessing data %s, %s"%(result, data))
