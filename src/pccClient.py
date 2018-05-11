@@ -104,16 +104,16 @@ class CmdLine(cmd.Cmd):
  
 
     def do_up(self, line):
-	self.communicationQueue.put("MoveController set_yrel %s"%line)
+        self.communicationQueue.put("MoveController set_yrel %s"%line)
 
     def do_down(self, line):
-	self.communicationQueue.put("MoveController set_yrel -%s"%line)
+        self.communicationQueue.put("MoveController set_yrel -%s"%line)
 
     def do_left(self, line):
-	self.communicationQueue.put("MoveController set_xrel -%s"%line)
+        self.communicationQueue.put("MoveController set_xrel -%s"%line)
 
     def do_right(self, line):
-	self.communicationQueue.put("MoveController set_xrel %s"%line)
+        self.communicationQueue.put("MoveController set_xrel %s"%line)
 
     def default(self, line):
         #print("Called default: ", line)

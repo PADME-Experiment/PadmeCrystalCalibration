@@ -25,11 +25,11 @@ class PipelineProcess(pccBaseModule.BaseModule):
         pccBaseModule.BaseModule.__init__(self, logger, config)
         self.command = command
         self.dataQueue = Queue.Queue()
-	self.syncQueue = Queue.Queue()
+        self.syncQueue = Queue.Queue()
         self.dataMutex = threading.Lock()
         self.nextStep = []
         self.name = tName
-	self.sync = 0
+        self.sync = 0
         self.logger = pccLogger.PadmeLoggerProxy(logger, self.name, level=True)
         self.setCWD()
         self.setLogfiles()
@@ -37,7 +37,7 @@ class PipelineProcess(pccBaseModule.BaseModule):
 
     # this is unused in the PipelineProcess module
     def setupCmdDict(self):
-	pass
+        pass
 
     def setCWD(self, cwd="./"):
         self.cwd = cwd
@@ -54,15 +54,15 @@ class PipelineProcess(pccBaseModule.BaseModule):
         else:
             self.processErrfile = "%s.%s.err"%(errfile, tStamp)
 
-	self.logger.trace("setting Logfile: %s Errfile: %s"%(self.processLogfile, self.processErrfile))
+        self.logger.trace("setting Logfile: %s Errfile: %s"%(self.processLogfile, self.processErrfile))
 
     def submit(self, data, sync=0):
         self.logger.debug("%s: submitted data %s"%(self.name, data))
         self.dataQueue.put(data)
-	self.sync = sync
-	if sync>0:
-		# wait for the sync signal
-		self.syncQueue.get()
+        self.sync = sync
+        if sync>0:
+                # wait for the sync signal
+                self.syncQueue.get()
 
     def connect(self, nextStep):
         self.dataMutex.acquire_lock()
@@ -113,9 +113,9 @@ class PipelineProcess(pccBaseModule.BaseModule):
 
     def postExec(self, result, data):
         self.logger.debug("postprocessing data %s"%result)
-	newSync = 0
-	if self.sync > 0:
-		newSync = self.sync-1
+        newSync = 0
+        if self.sync > 0:
+                newSync = self.sync-1
         self.dataMutex.acquire_lock()        
         if len(self.nextStep)>0:
             for step in self.nextStep:
@@ -131,8 +131,8 @@ class PipelineProcess(pccBaseModule.BaseModule):
                 cmd = self.preExec(data)
                 res = self.executeCommand(cmd, data)
                 self.postExec(res, data)
-		if self.sync>0:
-			self.syncQueue.put("yeah, yeah, I'm done")
+                if self.sync>0:
+                        self.syncQueue.put("yeah, yeah, I'm done")
             else: 
                 self.postExec("", "")
                 break
@@ -185,8 +185,8 @@ class DAQProcess(PipelineProcess):
         self.logger.debug("Data: %s"%answer.args())
         voltage, current, _, setVoltage, setCurrent, _ = [int(x) for x in answer.args()[0]]
 
-	# set the CWD
-	self.setCWD(self.daqWorkDir)
+        # set the CWD
+        self.setCWD(self.daqWorkDir)
 
         # get the daqConfgiFile
         daqConfigFile = self.config["DAQConfigFiles"][position]
@@ -207,18 +207,18 @@ class DAQProcess(PipelineProcess):
 
         theCmd = "%s %s"%(self.command, daqConfigFile)
 
-	self.logger.trace("theCmd: %s"%theCmd)
-	self.logger.trace("theCmd: %s"%self.command)
+        self.logger.trace("theCmd: %s"%theCmd)
+        self.logger.trace("theCmd: %s"%self.command)
         self.logger.info("submitting DAQ process for sequence %s, crystal %s@%s with %sV"%(self.sequenceName, crystalID, position, voltage))
         return theCmd
 
     def postExec(self, result, data):
 
-	self.logger.trace("postExec input data: %s %s"%(result, data))
+        self.logger.trace("postExec input data: %s %s"%(result, data))
 
-	if result == "" and data == "": 
+        if result == "" and data == "": 
             super(DAQProcess, self).postExec("", "")
-	    return
+            return
 
         # check if the DAQ produced an output file
         outputDAQdata = os.popen("ls -1 %s/data/CrystalCheck*"%self.daqWorkDir)
@@ -237,7 +237,7 @@ class DAQProcess(PipelineProcess):
         dataFileName = "%s/data/%s%s"%(self.daqWorkDir, self.outputFileName, dt)
 
         self.logger.debug("Moving it to: %s"%dataFileName)
-	os.system("mv %s %s"%(outputDAQfile, dataFileName))
+        os.system("mv %s %s"%(outputDAQfile, dataFileName))
 
         # and now we submit the newly acquired file to the next step
         # in the pipeline, if any...
@@ -248,8 +248,8 @@ class LVL1Process(PipelineProcess):
     def __init__(self, logger, config, daqWorkDir):
         cmd = "%s -n0 -d/ "%config["Level1DAQexecutable"] #, daqWorkDir) filename to process have absolute path
         PipelineProcess.__init__(self, logger, config, "Level1Step", cmd)
-	self.daqWorkDir = daqWorkDir
-	self.setCWD(self.daqWorkDir)
+        self.daqWorkDir = daqWorkDir
+        self.setCWD(self.daqWorkDir)
 
     def mkLogFileName(self, info): 
         fname = info.split("/")[-1]
@@ -268,7 +268,7 @@ class LVL1Process(PipelineProcess):
             self.mkLogFileName(data[0])
         else: 
             processFile = "%s.l1input.txt"%data
-	    self.logger.trace("processFile: %s"%processFile)
+            self.logger.trace("processFile: %s"%processFile)
             lf = open(processFile, "w")
             lf.write("0 %s\n"%data)
             lf.close()
@@ -283,31 +283,33 @@ class AnalysisProcess(PipelineProcess):
     def __init__(self, logger, config, daqWorkDir):
         cmd = "%s -i "%config["AnalysisDAQexecutable"]
         PipelineProcess.__init__(self, logger, config, "AnalysisStep", cmd)
-	self.daqWorkDir = daqWorkDir
-	self.setCWD(self.daqWorkDir)
+        self.daqWorkDir = daqWorkDir
+        self.analysisWorkDir = "%s/data/"%self.daqWorkDir
+        self.setCWD(self.analysisWorkDir)
+        
 
     def preExec(self, data):
         self.logger.info("starting %s process for args %s"%(self.command, data))
-	info = data.split("/")
-	fname = info[-1]
+        info = data.split("/")
+        fname = info[-1]
         logFileName = "%s/log/%s.analysis"%(self.daqWorkDir, fname)
         self.setLogfiles(logFileName, logFileName)
-	realDataFile = "%s.l1.root"%fname
+        realDataFile = "%s.l1.root"%fname
         self.logger.info("Processing file: %s"%realDataFile)
-	return super(AnalysisProcess, self).preExec(realDataFile)
+        return super(AnalysisProcess, self).preExec(realDataFile)
 
     def postExec(self, result, data):
         self.logger.debug("postprocessing data %s, %s"%(result, data))
-	if result == "" and data == "": 
+        if result == "" and data == "": 
             super(AnalysisProcess, self).postExec("", "")
-	    return
+            return
 
-	try:
-		tf = open("%s/out.root"%self.daqWorkDir).close()
-	except IOError:
-		self.logger.debug("couldn't find file out.root. Maybe there was a problem with the Analysis step? Check the log/err files.")
-	else:
-		outFile = "%s.out.root"%result
-		self.logger.info("renaming out.root to %s"%outFile)
-		os.system("mv %s/out.root %s"%(self.daqWorkDir, outFile))
-	        super(AnalysisProcess, self).postExec(outFile, data)
+        try:
+                tf = open("%s/out.root"%self.analysisWorkDir).close()
+        except IOError:
+                self.logger.debug("couldn't find file out.root. Maybe there was a problem with the Analysis step? Check the log/err files.")
+        else:
+                outFile = "%s.out.root"%result
+                self.logger.info("renaming out.root to %s"%outFile)
+                os.system("mv %s/out.root %s"%(self.analysisWorkDir, outFile))
+                super(AnalysisProcess, self).postExec(outFile, data)

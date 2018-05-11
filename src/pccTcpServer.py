@@ -15,7 +15,7 @@ else:
 class TcpServer(asyncore.dispatcher):
     def __init__(self, logger, configuration):
         asyncore.dispatcher.__init__(self)
-	self.config = configuration
+        self.config = configuration
         self.name = "TcpServer"
         self.logger = pccLogger.PadmeLoggerProxy(logger, self.name, level=True)
         self.port = int(self.config["TCPPort"])

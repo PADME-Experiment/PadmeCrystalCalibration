@@ -12,7 +12,7 @@ daqFile = [
 ("initfail_file","run/initfail_b00"),
 ("lock_file","run/lock_b00"),
 ("data_file","data/CrystalCheck+"),
-("total_daq_time","600"),  # => 10 min 
+("total_daq_time","120"),  # => per Clara's req / 10/04/18 
 ("startdaq_mode","0"),
 ("trigger_mode","1"),
 ("trigger_iolevel","NIM"),
@@ -88,9 +88,11 @@ def mkDaqConfigFile(path, daqFileID, crystalPosition, **kvs):
         elif key =="log_file":
             value ="%s_b%s.log"%(daqFileID, crystalPosition)
         elif key =="group_enable_mask":
-            value ="0x%d"%(1<<(ChannelsMap[crystalPosition][0]//8))
+            #value ="0x%d"%(1<<(ChannelsMap[crystalPosition][0]//8))
+            value ="0x%x"%((1<<(ChannelsMap[crystalPosition][0]//8))|(1<<3)) # activate group for chan 25 for the LYSO
         elif key =="channel_enable_mask":
-            value ="0x%08x"%(1<<ChannelsMap[crystalPosition][0])
+            #value ="0x%08x"%(1<<ChannelsMap[crystalPosition][0])
+            value ="0x%08x"%((1<<ChannelsMap[crystalPosition][0])|(1<<25)) # always activate chan 25 for the LYSO
         of.write("%-24s %s\n"%(key,value))        
     of.close()
     return daqFileName

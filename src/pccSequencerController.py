@@ -45,7 +45,7 @@ class Sequencer(pccBaseModule.BaseModule):
     def __init__(self, logger, configuration, sequenceConfigFile):
         pccBaseModule.BaseModule.__init__(self, logger, configuration)
         self.name = "Sequencer"
-	self.setupLoggerProxy()
+        self.setupLoggerProxy()
         self.sequenceConfigFile = sequenceConfigFile
 
         # Load the actual test setup
@@ -63,10 +63,11 @@ class Sequencer(pccBaseModule.BaseModule):
         # Prepare the test sequences
         self.createSequence()
 
-        self.dataMutex  = threading.Lock()
-        self.pauseNow   = False
-        self.stopNow    = False
-        self.runningNow = False
+        self.dataMutex      = threading.Lock()
+        self.pauseNow       = False
+        self.stopNow        = False
+        self.runningNow     = False
+        self.daqSkipNextRun = False
         
 
     def setupCmdDict(self):
@@ -76,9 +77,9 @@ class Sequencer(pccBaseModule.BaseModule):
         self.cmdDict["moveXY"] = self.moveXY
         self.cmdDict["setHV"] = self.setHV
         self.cmdDict["runDAQ"] = self.runDAQ
-	self.cmdDict["turnOnChannels"] = self.turnOnChannels
-	self.cmdDict["turnOffChannels"] = self.turnOffChannels
-	self.cmdDict["setHVtoSafe"] = self.setHVtoSafe
+        self.cmdDict["turnOnChannels"] = self.turnOnChannels
+        self.cmdDict["turnOffChannels"] = self.turnOffChannels
+        self.cmdDict["setHVtoSafe"] = self.setHVtoSafe
 
     def stop(self):
         self.dataMutex.acquire_lock()
@@ -197,12 +198,12 @@ class Sequencer(pccBaseModule.BaseModule):
 
         sequenceIndex = 0
         self.theSequence = []
-	self.theSequence.append(("setHVtoSafe", 0))
+        self.theSequence.append(("setHVtoSafe", 0))
         self.theSequence.append(("syncState", 0))
-	self.theSequence.append(("turnOnChannels", 0))
+        self.theSequence.append(("turnOnChannels", 0))
         self.theSequence.append(("syncState", 0))
         self.theSequence.append(("setHV", dataPoints[sequenceIndex]))
-	self.theSequence.append(("moveXY", (0,0)))
+        self.theSequence.append(("moveXY", (0,0)))
         self.theSequence.append(("syncState", 0))
 
         while sequenceIndex < len(dataPoints):
@@ -211,7 +212,7 @@ class Sequencer(pccBaseModule.BaseModule):
             if crystalID != "disabled" and voltages[vIdx] !=0.:
                 xAbs = int(pX * self.crystalXsize - self.initialXoffset)
                 yAbs = int(pY * self.crystalYsize - self.initialYoffset)
-            	self.logger.debug("Working on crystal %s @ row=%d column=%d, voltage point #%d"%(crystalID, pY, pX, vIdx))
+                self.logger.debug("Working on crystal %s @ row=%d column=%d, voltage point #%d"%(crystalID, pY, pX, vIdx))
 
                 self.logger.debug("setHV to %dV"%voltages[vIdx])
                 self.theSequence.append(("setHV", dataPoints[sequenceIndex]))
@@ -227,7 +228,7 @@ class Sequencer(pccBaseModule.BaseModule):
 
             sequenceIndex += 1
 
-	self.theSequence.append(("turnOffChannels", 0))
+        self.theSequence.append(("turnOffChannels", 0))
         self.theSequence.append(("syncState", 0))
         self.theSequence.append(("setHVtoSafe", 0))
         self.theSequence.append(("moveXY", (0,0)))
@@ -255,23 +256,23 @@ class Sequencer(pccBaseModule.BaseModule):
         self.logger.debug("Sequencer trying to start from: %d @ %d,%d"%(vIdx, px, py))
         self.theSequence = copy.copy(self.theSequenceStored)
         while 1:
-	    if self.theSequence[0][0] == "setHV":
-	            vc, xc, yc, _,_,_ = self.theSequence[0][1]
-		    self.logger.debug("Current entry: %d @ %d,%d"%(vc, xc, yc))
-		    self.logger.debug("%s %s %s"%(vc==vIdx, xc==px, yc==py))
-            	    if vc==vIdx and xc==px and yc==py:
-             		break
-	    elif len(self.theSequence)==0:
-		    self.logger.info("Nothing left in the sequence... check the input parameters!")
-	            break
+            if self.theSequence[0][0] == "setHV":
+                    vc, xc, yc, _,_,_ = self.theSequence[0][1]
+                    self.logger.debug("Current entry: %d @ %d,%d"%(vc, xc, yc))
+                    self.logger.debug("%s %s %s"%(vc==vIdx, xc==px, yc==py))
+                    if vc==vIdx and xc==px and yc==py:
+                        break
+            elif len(self.theSequence)==0:
+                    self.logger.info("Nothing left in the sequence... check the input parameters!")
+                    break
             self.theSequence.pop(0)
 
-	if len(self.theSequence)>0:
-        	self.theSequence.insert(0, ("syncState", 0))
-		self.theSequence.insert(0, ("turnOnChannels", 0))
-        	self.theSequence.insert(0, ("syncState", 0))
-		self.theSequence.insert(0, ("setHVtoSafe", 0))
-        	self.start()
+        if len(self.theSequence)>0:
+                self.theSequence.insert(0, ("syncState", 0))
+                self.theSequence.insert(0, ("turnOnChannels", 0))
+                self.theSequence.insert(0, ("syncState", 0))
+                self.theSequence.insert(0, ("setHVtoSafe", 0))
+                self.start()
 
     def run(self):
         
@@ -308,7 +309,11 @@ class Sequencer(pccBaseModule.BaseModule):
                             self.commandQueue.put(commandDict[cmd](msgTokenId, arg))
                         commandList = []
                     else:
-                        commandList.append(command)
+                        if command[0] == "runDAQ" and self.daqSkipNextRun == True:
+                            self.logger.warn("Skipping DAQ run (due to HV problems) - run data: %s"%str(command))
+                            self.daqSkipNextRun = False
+                        else:
+                            commandList.append(command)
                 else:
                     if len(tokenDict) == 0:
                         freeState = True
@@ -322,6 +327,13 @@ class Sequencer(pccBaseModule.BaseModule):
                     if retTokenId in tokenDict:
                         self.logger.debug(retTokenId, "is in ", tokenDict)
                         del(tokenDict[retTokenId])
+                        if retTokenId == self.HVControllerTokenID:
+                            # this should be a tuple, with the second arg a boolean
+                            if cmd.args()[1] == False:
+                                self.logger.warn("The HV controller had a problem with this channel. Skipping this run.")
+                                self.daqSkipNextRun = True
+                            else:
+                                self.daqSkipNextRun = False
                     self.logger.debug("tokenDict: ", tokenDict)
 
                 except Queue.Empty:
@@ -332,30 +344,34 @@ class Sequencer(pccBaseModule.BaseModule):
 
 
     def resetXY(self, theTokenId, args):
-	self.logger.debug("here I would normally reset the position...")
-	return "Done"
+        self.logger.debug("here I would normally reset the position...")
+        return "Done"
         return pccCommandCenter.Command(("MoveController", "resetXY"), tokenId=theTokenId, answerQueue=self.inputQueue)
 
     def moveXY(self, theTokenId, args):
         return pccCommandCenter.Command(("MoveController", "move_xy", args[0], args[1]), tokenId=theTokenId, answerQueue=self.inputQueue)
 
     def setHV(self, theTokenId, args):
+        self.HVControllerTokenID = theTokenId
         return pccCommandCenter.Command(("HVController", "setHV", args), tokenId=theTokenId, answerQueue=self.inputQueue)
         
-    def runDAQ(self, theTokenId, args):
+    def runDAQ(self, theTokenId, args): def runDAQ(self, theTokenId, args):
+        self.logger.debug("runDAQ: ", args) # sequenceName, position, crystalID
+        return pccCommandCenter.Command(("RCController", "runDAQ", args[0], args[1], args[2]), tokenId=theTokenId, answerQueue=self.inputQueue)
+
         self.logger.debug("runDAQ: ", args) # sequenceName, position, crystalID
         return pccCommandCenter.Command(("RCController", "runDAQ", args[0], args[1], args[2]), tokenId=theTokenId, answerQueue=self.inputQueue)
 
     def setHVtoSafe(self, theTokenId, args):
-	self.logger.debug("Setting all Vset to safe value (0V)")
+        self.logger.debug("Setting all Vset to safe value (0V)")
         return pccCommandCenter.Command(("HVController", "setHVtoSafe", args), tokenId=theTokenId, answerQueue=self.inputQueue)
 
     def turnOnChannels(self, theTokenId, args):
-	self.logger.debug("Turning ON all HV channels")
+        self.logger.debug("Turning ON all HV channels")
         return pccCommandCenter.Command(("HVController", "doAllChanOn", args), tokenId=theTokenId, answerQueue=self.inputQueue)
 
     def turnOffChannels(self, theTokenId, args):
-	self.logger.debug("Turning OFF all HV channels")
+        self.logger.debug("Turning OFF all HV channels")
         return pccCommandCenter.Command(("HVController", "doAllChanOff", args), tokenId=theTokenId, answerQueue=self.inputQueue)
 
 
@@ -363,7 +379,7 @@ class SequencerController(pccBaseModule.BaseModule):
     def __init__(self, logger, configuration):
         pccBaseModule.BaseModule.__init__(self, logger, configuration)
         self.name = "SequencerController"
-	self.setupLoggerProxy()
+        self.setupLoggerProxy()
         self.theSequencer = None
 
     #def exit(self):

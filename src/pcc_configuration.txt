@@ -26,9 +26,15 @@ AnalysisDAQexecutable = /home/daq/DigiDaq/ReadSourceSingleCh.exe
 # command fails to complete with a reasonable result
 HVSafeReadMode=True
 
-# This force the HV system to check that the voltage transition
+# This forces the HV system to check that the voltage transition
 # is complete to the nominal (Set) level before returning
 HVVSetSyncMode=True
+
+# This parameter, if different from 0, provides a timeout for the set voltage
+# operations. If the target voltage was not reached within <parameter value> 
+# seconds, the HVcontroller generates an error and the Sequencer skips
+# the upcoming DAQ run
+HVFailureTime=0
 
 # the crystal size, in micron
 CrystalXSize = 21150

@@ -1,4 +1,4 @@
-import pccBaseModule
+ import pccBaseModule
 import pccCommandCenter
 import pccProcessingPipeline as pccPP
 
@@ -6,8 +6,8 @@ class RCController(pccBaseModule.BaseModule):
     def __init__(self, logger, configuration):
         pccBaseModule.BaseModule.__init__(self, logger, configuration)
         self.name = "RCController"
-	self.nakedLogger = logger
-	self.setupLoggerProxy()
+        self.nakedLogger = logger
+        self.setupLoggerProxy()
         self.status = "idle"
         self.ppDict = {}
 
@@ -25,9 +25,9 @@ class RCController(pccBaseModule.BaseModule):
         pps2 = pccPP.LVL1Process(self.nakedLogger, self.config, daqWorkDir)
         pps3 = pccPP.AnalysisProcess(self.nakedLogger, self.config, daqWorkDir)
 
-	pps1.setCommandQueue(self.commandQueue)
-	pps2.setCommandQueue(self.commandQueue)
-	pps3.setCommandQueue(self.commandQueue)
+        pps1.setCommandQueue(self.commandQueue)
+        pps2.setCommandQueue(self.commandQueue)
+        pps3.setCommandQueue(self.commandQueue)
 
         pp.addProcess("DAQ",      pps1)
         pp.addProcess("LVL1",     pps2)
@@ -41,9 +41,9 @@ class RCController(pccBaseModule.BaseModule):
         return pp
 
     def exit(self):
-	for entry in self.ppDict:
+        for entry in self.ppDict:
             self.ppDict[entry].submit("")
-	super(RCController, self).exit()
+        super(RCController, self).exit()
 
     def status(self):
         if self.status == "running":
@@ -56,4 +56,4 @@ class RCController(pccBaseModule.BaseModule):
         thePP = self.getProcessingPipeline(sequenceName, daqWorkDir)
         # the 1 indicates that we wish to wait for the first step of the processing pipeline to be finished before continuing
         thePP.submit((position, crystalID), 1) 
-	return "DAQ done"
+        return "DAQ done"
