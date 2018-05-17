@@ -55,7 +55,7 @@ class HVController(pccBaseModule.BaseModule):
         self.logger.debug("Argument to execPCT_HV: %s"%position)
         channel = HVchannel(position)
         self.logger.debug("Working on HV channel: %d"%channel)
-        
+       
         while True:
             dataChan = os.popen(self.hvExec%(channel, command))
             data = dataChan.readlines()

@@ -4,6 +4,12 @@ from __future__ import print_function
 
 import socket
 import sys
+import os
+import signal
+
+def alarm_handler(signum, frame):
+    print("No data came within timeout interval... exiting.")
+    sys.exit(1)
 
 #config_file_name = "pcc_configuration.txt"
 #config_file = open(config_file_name)
@@ -32,6 +38,11 @@ dest = sys.argv[1]
 if dest in services.keys():
     dest = services[dest]
 
+
+# cheap and junky technique to get out after a while...
+signal.signal(signal.SIGALRM, alarm_handler)
+signal.alarm(30) # 30s... it should be enough
+
 MESSAGE = "%s %s\n"%(dest, " ".join(sys.argv[2:]))
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -47,7 +58,8 @@ while keepGoing:
     print(len(data), data)
     if data[-1:] == "\n":
         keepGoing = False
-        
+
+signal.alarm(0) # disable the alarm, just in case it fires at the wrong time...        
 s.close()
 
 print(data)

@@ -68,7 +68,7 @@ class Sequencer(pccBaseModule.BaseModule):
         self.stopNow        = False
         self.runningNow     = False
         self.daqSkipNextRun = False
-        
+        self.HVControllerTokenID = -42424         
 
     def setupCmdDict(self):
         #self.cmdDict["status"] = self.status
@@ -321,15 +321,20 @@ class Sequencer(pccBaseModule.BaseModule):
                 try:
                     # this works also as a "sleep"
                     cmd = self.inputQueue.get(timeout=0.01)
-                    self.logger.debug("tokenDict: ", tokenDict)
+                    self.logger.debug("tokenDict: ", tokenDict.keys())
+                    self.logger.debug("tokenDict: ", tokenDict.values())
                     self.logger.debug("Got this back: ", cmd.command(), cmd.tokenId(), cmd.args())
                     retTokenId = int(cmd.tokenId())
-                    if retTokenId in tokenDict:
-                        self.logger.debug(retTokenId, "is in ", tokenDict)
+                    if tokenDict.has_key(retTokenId):
+                        self.logger.debug(retTokenId, "is in ", tokenDict.keys())
+                        self.logger.debug(retTokenId, "is in ", tokenDict.values())
                         del(tokenDict[retTokenId])
+                        self.logger.debug(retTokenId, "is in ", tokenDict.keys())
+                        self.logger.debug(retTokenId, "is in ", tokenDict.values())
                         if retTokenId == self.HVControllerTokenID:
                             # this should be a tuple, with the second arg a boolean
-                            if cmd.args()[1] == False:
+                            self.logger.debug("cmd.args(): ", cmd.args())
+                            if cmd.args()[0][1] == False:
                                 self.logger.warn("The HV controller had a problem with this channel. Skipping this run.")
                                 self.daqSkipNextRun = True
                             else:
@@ -355,7 +360,7 @@ class Sequencer(pccBaseModule.BaseModule):
         self.HVControllerTokenID = theTokenId
         return pccCommandCenter.Command(("HVController", "setHV", args), tokenId=theTokenId, answerQueue=self.inputQueue)
         
-    def runDAQ(self, theTokenId, args): def runDAQ(self, theTokenId, args):
+    def runDAQ(self, theTokenId, args):
         self.logger.debug("runDAQ: ", args) # sequenceName, position, crystalID
         return pccCommandCenter.Command(("RCController", "runDAQ", args[0], args[1], args[2]), tokenId=theTokenId, answerQueue=self.inputQueue)
 
@@ -395,7 +400,12 @@ class SequencerController(pccBaseModule.BaseModule):
         self.cmdDict["sequencerStartFrom"] = self.startSequenceFrom 
  
     def loadSequence(self, *args):
-        fname = args[0]
+        if len(args)>0:
+            fname = args[0]
+        else: 
+            self.logger.warn("No file name found. Please check the command...")
+            return "No file name found. Please check the command..."
+
         if os.path.isfile(fname):
             self.logger.info("%s: creating sequence from file %s"%(self.name, fname))
             self.theSequencer = Sequencer(self.logger, self.config, fname)
